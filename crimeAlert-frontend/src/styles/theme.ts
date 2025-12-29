@@ -1,27 +1,50 @@
-// Theme Configuration
-// Global styling and design system
-//
-// TODO: Define the following theme properties:
-//
-// Colors:
-//   - primary, secondary, success, danger, warning, info
-//   - Text colors (textPrimary, textSecondary, textLight)
-//   - Background colors
-//   - Border colors
-//
-// Spacing:
-//   - xs, sm, md, lg, xl, xxl (4, 8, 16, 24, 32, 48)
-//
-// Border Radius:
-//   - sm, md, lg, xl, round
-//
-// Font Sizes:
-//   - xs, sm, md, base, lg, xl, xxl, xxxl
-//
-// Font Weights:
-//   - light, regular, medium, semibold, bold
-//
-// Shadows:
-//   - sm, md, lg (with shadowColor, shadowOffset, shadowOpacity, shadowRadius, elevation)
-//
-// Export as theme object for use throughout the app
+import { TextStyle } from "react-native";
+
+export const Colors = {
+    primary: '#1A9B67',
+    primaryLight: '#E8F5E9',
+    secondary: '#666666',
+    text: '#1A1A1A',
+    background: '#F8FDFB',
+    white: '#FFFFFF',
+    danger: '#E23A3A',
+    warning: '#F4B400',
+    border: '#E0E0E0',
+    cardBg: '#FFFFFF',
+    riskLow: '#E8F5E9',
+    riskMedium: '#FFF8E1',
+    riskHigh: '#FFEBEE',
+};
+
+export const Spacing = {
+    xs: 4,
+    sm: 8,
+    md: 16,
+    lg: 24,
+    xl: 32,
+};
+
+export const Typography: Record<string, TextStyle> = {
+    h1: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: Colors.text,
+    },
+    h2: {
+        fontSize: 20,
+        fontWeight: '600',
+        color: Colors.text,
+    },
+    body: {
+        fontSize: 16,
+        color: Colors.text,
+    },
+    caption: {
+        fontSize: 14,
+        color: Colors.secondary,
+    },
+    small: {
+        fontSize: 12,
+        color: Colors.secondary,
+    },
+};
