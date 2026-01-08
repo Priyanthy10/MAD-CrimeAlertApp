@@ -1,192 +1,216 @@
-import React, { useEffect, useState } from "react";
-import { useWindowDimensions } from 'react-native';
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-} from "react-native";
-import { useRouter } from "expo-router";
-import { getAlerts } from "../src/services/alertService";
-import AlertItem from "../src/components/AlertItem";
-import FooterTabs from "../src/components/FooterTabs";
-
-export type AlertSeverity = "low" | "medium" | "high";
-
-export interface Alert {
-  id: string;
-  type: string;
-  message: string;
-  latitude: number;
-  longitude: number;
-  timestamp: string;
-  severity: AlertSeverity;
-  isRead?: boolean;
-}
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { Colors, Spacing, Typography } from '../src/styles/theme';
+import { Plus, Bell, Settings, ChevronRight } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 
 export default function AlertsScreen() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedTab, setSelectedTab] = useState<'all' | 'saved'>('all');
+    const router = useRouter();
+    const [activeTab, setActiveTab] = useState('All');
 
-  const router = useRouter();
-  const { width } = useWindowDimensions();
+    const alerts = [
+        {
+            id: '1',
+            type: 'Assault reported at City Park',
+            risk: 'HIGH',
+            time: '5 minutes ago',
+            color: Colors.danger
+        },
+        {
+            id: '2',
+            type: 'Suspicious activity near Home zone',
+            risk: 'MEDIUM',
+            time: '3 hours ago',
+            color: Colors.warning
+        },
+        {
+            id: '3',
+            type: 'Vandalism activity near Home zone',
+            risk: 'MEDIUM',
+            time: 'Yesterday ago',
+            color: Colors.warning
+        },
+    ];
 
-  useEffect(() => {
-    fetchAlerts();
-  }, []);
-
-  const fetchAlerts = async () => {
-    try {
-      setLoading(true);
-      const token = "dummy-token";
-      const data = await getAlerts(token);
-
-      const sorted = data.sort(
-        (a: Alert, b: Alert) =>
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      );
-
-      setAlerts(sorted);
-    } catch (error) {
-      console.error("Failed to fetch alerts:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredAlerts = selectedTab === 'all' ? alerts : alerts.filter(a => a.isRead);
-
-  const handleAlertPress = (alert: Alert) => {
-    setAlerts((prev) =>
-      prev.map((a) =>
-        a.id === alert.id ? { ...a, isRead: true } : a
-      )
-    );
-    router.push("/");
-  };
-
-  if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
+        <SafeAreaView style={styles.container}>
+            <View style={styles.header}>
+                <Text style={styles.title}>Alerts &{"\n"}Notifications</Text>
+            </View>
+
+            <View style={styles.tabContainer}>
+                <TouchableOpacity
+                    style={[styles.tab, activeTab === 'All' && styles.activeTab]}
+                    onPress={() => setActiveTab('All')}
+                >
+                    <Text style={[styles.tabText, activeTab === 'All' && styles.activeTabText]}>All</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tab, activeTab === 'Saved Zones' && styles.activeTab]}
+                    onPress={() => setActiveTab('Saved Zones')}
+                >
+                    <Text style={[styles.tabText, activeTab === 'Saved Zones' && styles.activeTabText]}>Saved Zones</Text>
+                </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+                {alerts.map((alert) => (
+                    <View key={alert.id} style={styles.alertCard}>
+                        <View style={[styles.indicator, { backgroundColor: alert.color }]} />
+                        <View style={styles.cardContent}>
+                            <View style={styles.cardHeader}>
+                                <View style={[styles.riskBadge, { backgroundColor: alert.risk === 'HIGH' ? Colors.riskHigh : Colors.riskMedium }]}>
+                                    <Text style={[styles.riskText, { color: alert.color }]}>{alert.risk} RISK</Text>
+                                </View>
+                                <View style={[styles.riskBadge, { backgroundColor: alert.risk === 'HIGH' ? Colors.riskHigh : Colors.riskMedium, opacity: 0.5 }]}>
+                                    <Text style={[styles.riskText, { color: alert.color, fontSize: 8 }]}>HIGH RISK</Text>
+                                </View>
+                            </View>
+
+                            <Text style={styles.alertType}>{alert.type}</Text>
+                            <Text style={styles.alertTime}>{alert.time}</Text>
+                        </View>
+                        <ChevronRight size={20} color={Colors.border} style={styles.chevron} />
+                    </View>
+                ))}
+            </ScrollView>
+
+            {/* Bottom Navigation */}
+            <View style={styles.bottomNav}>
+                <TouchableOpacity style={styles.navItem} onPress={() => router.push('/add-zone')}>
+                    <Plus size={24} color={Colors.primary} />
+                    <Text style={styles.navText}>Add Zone</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.navItem} onPress={() => router.push('/alerts')}>
+                    <Bell size={24} color={Colors.danger} />
+                    <Text style={[styles.navText, { color: Colors.danger }]}>Alerts</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.navItem} onPress={() => router.push('/settings')}>
+                    <Settings size={24} color={Colors.secondary} />
+                    <Text style={styles.navText}>Settings</Text>
+                </TouchableOpacity>
+            </View>
+        </SafeAreaView>
     );
-  }
-
-  return (
-    <View style={styles.container}> 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.bigTitle}>Alerts &{"\n"}Notifications</Text>
-
-        {/* Tab Selector */}
-        <View style={styles.segment}>
-          <TouchableOpacity
-            style={[styles.segmentButton, selectedTab === 'all' && styles.segmentActive]}
-            onPress={() => setSelectedTab('all')}
-          >
-            <Text style={[styles.segmentText, selectedTab === 'all' && styles.segmentTextActive]}>
-              All
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.segmentButton, selectedTab === 'saved' && styles.segmentActive]}
-            onPress={() => setSelectedTab('saved')}
-          >
-            <Text style={[styles.segmentText, selectedTab === 'saved' && styles.segmentTextActive]}>
-              Saved Zones
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Alerts List */}
-      <FlatList
-        data={filteredAlerts}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <AlertItem alert={item} onPress={() => handleAlertPress(item)} />
-        )}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>No alerts available</Text>
-        }
-        scrollEnabled={true}
-        nestedScrollEnabled={true}
-        contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 12 }}
-      />
-
-      {/* Footer Tabs */}
-      <FooterTabs active="alerts" />
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FBFB',
-    width: '100%',
-    position: 'relative',
-  },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingTop: 16,
-  },
-  bigTitle: {
-    fontSize: 30,
-    fontWeight: "800",
-    color: '#0f172a',
-    marginBottom: 12,
-    lineHeight: 36,
-  },
-  segment: {
-    flexDirection: 'row',
-    alignSelf: 'stretch',
-    borderRadius: 12,
-    padding: 6,
-    borderWidth: 1.6,
-    borderColor: '#16A34A',
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-  },
-  segmentButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 10,
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 4,
-  },
-  segmentActive: {
-    backgroundColor: '#16A34A',
-    shadowColor: '#16A34A',
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  segmentText: {
-    color: '#16A34A',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  segmentTextActive: {
-    color: '#fff',
-  },
-  emptyText: {
-    textAlign: "center",
-    marginTop: 40,
-    color: "#777",
-    fontSize: 16,
-  },
+    container: {
+        flex: 1,
+        backgroundColor: Colors.background,
+    },
+    header: {
+        paddingHorizontal: Spacing.xl,
+        paddingTop: 60,
+        marginBottom: Spacing.lg,
+    },
+    title: {
+        ...Typography.h1,
+        fontSize: 28,
+    },
+    tabContainer: {
+        flexDirection: 'row',
+        marginHorizontal: Spacing.xl,
+        backgroundColor: Colors.white,
+        borderRadius: 8,
+        padding: 4,
+        borderWidth: 1,
+        borderColor: Colors.primary,
+        marginBottom: Spacing.lg,
+    },
+    tab: {
+        flex: 1,
+        paddingVertical: 10,
+        alignItems: 'center',
+        borderRadius: 6,
+    },
+    activeTab: {
+        backgroundColor: Colors.primary,
+    },
+    tabText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: Colors.primary,
+    },
+    activeTabText: {
+        color: Colors.white,
+    },
+    list: {
+        flex: 1,
+        paddingHorizontal: Spacing.lg,
+    },
+    listContent: {
+        paddingBottom: 100,
+    },
+    alertCard: {
+        backgroundColor: Colors.white,
+        borderRadius: 12,
+        flexDirection: 'row',
+        marginBottom: Spacing.md,
+        overflow: 'hidden',
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        borderWidth: 1,
+        borderColor: Colors.border,
+    },
+    indicator: {
+        width: 6,
+        height: '100%',
+    },
+    cardContent: {
+        flex: 1,
+        padding: Spacing.md,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    riskBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    riskText: {
+        fontSize: 10,
+        fontWeight: '800',
+    },
+    alertType: {
+        ...Typography.body,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    alertTime: {
+        ...Typography.small,
+    },
+    chevron: {
+        alignSelf: 'center',
+        marginRight: Spacing.sm,
+    },
+    bottomNav: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 70,
+        backgroundColor: Colors.white,
+        flexDirection: 'row',
+        borderTopWidth: 1,
+        borderTopColor: Colors.border,
+        paddingBottom: 10,
+    },
+    navItem: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    navText: {
+        fontSize: 10,
+        marginTop: 4,
+        color: Colors.secondary,
+    },
 });
