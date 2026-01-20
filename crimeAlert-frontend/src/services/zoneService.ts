@@ -1,28 +1,70 @@
-// Zone Service
-// Handles all zone-related API calls
-//
-// TODO: Implement the following functions:
-//
-// getUserZones(token)
-//   - GET request to /api/zones
-//   - Return array of user's zones
-//   - Include zone details (id, name, latitude, longitude, radius)
-//
-// createZone(token, zoneData: {name, latitude, longitude, radius})
-//   - POST request to /api/zones
-//   - Create new monitored zone
-//   - Return created zone object
-//
-// updateZone(token, zoneId, updates)
-//   - PUT request to /api/zones/:id
-//   - Update zone details
-//   - Return updated zone object
-//
-// deleteZone(token, zoneId)
-//   - DELETE request to /api/zones/:id
-//   - Remove zone from monitoring
-//   - Return success status
-//
-// getZoneById(token, zoneId)
-//   - GET request to /api/zones/:id
-//   - Return single zone details
+import {
+    collection,
+    addDoc,
+    getDocs,
+    doc,
+    updateDoc,
+    deleteDoc,
+    query,
+    where
+} from "firebase/firestore";
+import { db, auth } from "./firebaseConfig";
+
+export interface Zone {
+    id?: string;
+    userId: string;
+    name: string;
+    latitude: number;
+    longitude: number;
+    radius: number;
+    phoneNameOnly: boolean;
+    highRiskAlerts: boolean;
+}
+
+/**
+ * Get all zones for the current user
+ */
+export async function getUserZones(): Promise<Zone[]> {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    const zonesCol = collection(db, "zones");
+    const q = query(zonesCol, where("userId", "==", user.uid));
+    const snapshot = await getDocs(q);
+
+    return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+    } as Zone));
+}
+
+/**
+ * Create a new zone
+ */
+export async function createZone(zoneData: Omit<Zone, "userId" | "id">): Promise<string> {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    const zonesCol = collection(db, "zones");
+    const docRef = await addDoc(zonesCol, {
+        ...zoneData,
+        userId: user.uid
+    });
+    return docRef.id;
+}
+
+/**
+ * Update an existing zone
+ */
+export async function updateZone(zoneId: string, updates: Partial<Zone>): Promise<void> {
+    const zoneDoc = doc(db, "zones", zoneId);
+    await updateDoc(zoneDoc, updates);
+}
+
+/**
+ * Delete a zone
+ */
+export async function deleteZone(zoneId: string): Promise<void> {
+    const zoneDoc = doc(db, "zones", zoneId);
+    await deleteDoc(zoneDoc);
+}

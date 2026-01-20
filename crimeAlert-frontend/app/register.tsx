@@ -1,16 +1,51 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image, ScrollView, Alert } from 'react-native';
 import { Colors, Spacing, Typography } from '../src/styles/theme';
 import { Button } from '../src/components/Button';
 import { Input } from '../src/components/Input';
 import { ShieldCheck, Mail, Lock, User } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '../src/context/AuthContext';
 
 export default function RegisterScreen() {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
     const router = useRouter();
+    const { register } = useAuth();
+
+    const handleRegister = async () => {
+        // Validation
+        if (!name.trim()) {
+            Alert.alert('Error', 'Please enter your name');
+            return;
+        }
+        if (!email.trim()) {
+            Alert.alert('Error', 'Please enter your email');
+            return;
+        }
+        if (!password.trim()) {
+            Alert.alert('Error', 'Please enter a password');
+            return;
+        }
+        if (password.length < 6) {
+            Alert.alert('Error', 'Password must be at least 6 characters');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await register(email, password);
+            Alert.alert('Success', 'Account created successfully!', [
+                { text: 'OK', onPress: () => router.replace('/') }
+            ]);
+        } catch (error: any) {
+            Alert.alert('Registration Failed', error.message || 'Failed to create account');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -44,7 +79,7 @@ export default function RegisterScreen() {
                             keyboardType="email-address"
                         />
                         <Input
-                            placeholder="Password"
+                            placeholder="Password (min 6 characters)"
                             value={password}
                             onChangeText={setPassword}
                             icon={<Lock size={20} color={Colors.secondary} />}
@@ -52,9 +87,10 @@ export default function RegisterScreen() {
                         />
 
                         <Button
-                            title="Sign Up"
-                            onPress={() => router.replace('/')}
+                            title={loading ? 'Creating Account...' : 'Sign Up'}
+                            onPress={handleRegister}
                             style={styles.signUpBtn}
+                            disabled={loading}
                         />
 
                         <View style={styles.loginContainer}>

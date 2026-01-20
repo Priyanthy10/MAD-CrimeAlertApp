@@ -9,6 +9,7 @@ export const Colors = {
     white: '#FFFFFF',
     danger: '#E23A3A',
     warning: '#F4B400',
+    success: '#1A9B67',
     border: '#E0E0E0',
     cardBg: '#FFFFFF',
     riskLow: '#E8F5E9',

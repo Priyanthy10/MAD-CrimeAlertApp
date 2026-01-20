@@ -1,15 +1,35 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
 import { Colors, Spacing, Typography } from '../src/styles/theme';
 import { Button } from '../src/components/Button';
 import { Input } from '../src/components/Input';
 import { ShieldCheck, Mail, Lock } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '../src/context/AuthContext';
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
     const router = useRouter();
+    const { login } = useAuth();
+    const handleLogin = async () => {
+        if (!email.trim() || !password.trim()) {
+            Alert.alert('Error', 'Please enter both email and password');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await login(email, password);
+            Alert.alert('Success', 'Logged in successfully!');
+            router.replace('/');
+        } catch (error: any) {
+            Alert.alert('Login Failed', error.message || 'Invalid credentials');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -32,6 +52,7 @@ export default function LoginScreen() {
                         onChangeText={setEmail}
                         icon={<Mail size={20} color={Colors.secondary} />}
                         keyboardType="email-address"
+                        autoCapitalize="none"
                     />
                     <Input
                         placeholder="Password"
@@ -42,12 +63,16 @@ export default function LoginScreen() {
                     />
 
                     <Button
-                        title="Sign In"
-                        onPress={() => router.replace('/')}
+                        title={loading ? 'Signing In...' : 'Sign In'}
+                        onPress={handleLogin}
                         style={styles.signInBtn}
+                        disabled={loading}
                     />
 
-                    <TouchableOpacity style={styles.forgotBtn}>
+                    <TouchableOpacity
+                        style={styles.forgotBtn}
+                        onPress={() => router.push('/forgot-password')}
+                    >
                         <Text style={styles.forgotText}>Forgot Password?</Text>
                     </TouchableOpacity>
 
@@ -57,29 +82,7 @@ export default function LoginScreen() {
                             <Text style={styles.signUpText}>Sign Up</Text>
                         </TouchableOpacity>
                     </View>
-                </View>
 
-                <View style={styles.divider}>
-                    <View style={styles.line} />
-                    <Text style={styles.dividerText}>OR</Text>
-                    <View style={styles.line} />
-                </View>
-
-                <View style={styles.socialContainer}>
-                    <Button
-                        title="Continue Google"
-                        variant="social"
-                        onPress={() => { }}
-                        style={styles.socialBtn}
-                        icon={<Image source={{ uri: 'https://img.icons8.com/color/48/000000/google-logo.png' }} style={styles.socialIcon} />}
-                    />
-                    <Button
-                        title="Continue Apple"
-                        variant="social"
-                        onPress={() => { }}
-                        style={styles.socialBtn}
-                        icon={<Image source={{ uri: 'https://img.icons8.com/ios-filled/50/000000/mac-os.png' }} style={styles.socialIcon} />}
-                    />
                 </View>
             </View>
         </SafeAreaView>
@@ -128,11 +131,14 @@ const styles = StyleSheet.create({
     },
     forgotBtn: {
         alignSelf: 'center',
-        marginTop: Spacing.sm,
+        marginTop: Spacing.md,
+        padding: Spacing.xs,
     },
     forgotText: {
         ...Typography.small,
-        color: Colors.secondary,
+        color: Colors.primary,
+        fontWeight: '700',
+        textDecorationLine: 'underline',
     },
     signUpContainer: {
         flexDirection: 'row',

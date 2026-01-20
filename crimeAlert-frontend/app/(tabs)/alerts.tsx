@@ -1,36 +1,65 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { Colors, Spacing, Typography } from '../src/styles/theme';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { Colors, Spacing, Typography } from '../../src/styles/theme';
 import { Plus, Bell, Settings, ChevronRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { useCrimeAlerts } from '../../src/context/CrimeAlertContext';
+
+import { getUserZones, Zone } from '../../src/services/zoneService';
+import { getDistance } from '../../src/services/proximityService';
 
 export default function AlertsScreen() {
     const router = useRouter();
+    const { alerts, loading: alertsLoading } = useCrimeAlerts();
     const [activeTab, setActiveTab] = useState('All');
+    const [userZones, setUserZones] = useState<Zone[]>([]);
+    const [loadingZones, setLoadingZones] = useState(false);
 
-    const alerts = [
-        {
-            id: '1',
-            type: 'Assault reported at City Park',
-            risk: 'HIGH',
-            time: '5 minutes ago',
-            color: Colors.danger
-        },
-        {
-            id: '2',
-            type: 'Suspicious activity near Home zone',
-            risk: 'MEDIUM',
-            time: '3 hours ago',
-            color: Colors.warning
-        },
-        {
-            id: '3',
-            type: 'Vandalism activity near Home zone',
-            risk: 'MEDIUM',
-            time: 'Yesterday ago',
-            color: Colors.warning
-        },
-    ];
+    React.useEffect(() => {
+        if (activeTab === 'Saved Zones') {
+            fetchUserZones();
+        }
+    }, [activeTab]);
+
+    const fetchUserZones = async () => {
+        setLoadingZones(true);
+        try {
+            const zones = await getUserZones();
+            setUserZones(zones);
+        } catch (error) {
+            console.error("Error fetching zones for alerts:", error);
+        } finally {
+            setLoadingZones(false);
+        }
+    };
+
+    const filteredAlerts = alerts.filter(alert => {
+        if (activeTab === 'All') return true;
+
+        // Check if alert is within any saved zone radius
+        return userZones.some(zone => {
+            const distance = getDistance(zone.latitude, zone.longitude, alert.latitude, alert.longitude);
+            return distance <= zone.radius;
+        });
+    });
+
+    const formatTime = (timestamp: any) => {
+        if (!timestamp) return "Just now";
+        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+
+        let interval = seconds / 31536000;
+        if (interval > 1) return Math.floor(interval) + " years ago";
+        interval = seconds / 2592000;
+        if (interval > 1) return Math.floor(interval) + " months ago";
+        interval = seconds / 86400;
+        if (interval > 1) return Math.floor(interval) + " days ago";
+        interval = seconds / 3600;
+        if (interval > 1) return Math.floor(interval) + " hours ago";
+        interval = seconds / 60;
+        if (interval > 1) return Math.floor(interval) + " minutes ago";
+        return Math.floor(seconds) + " seconds ago";
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -54,42 +83,32 @@ export default function AlertsScreen() {
             </View>
 
             <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-                {alerts.map((alert) => (
-                    <View key={alert.id} style={styles.alertCard}>
-                        <View style={[styles.indicator, { backgroundColor: alert.color }]} />
-                        <View style={styles.cardContent}>
-                            <View style={styles.cardHeader}>
-                                <View style={[styles.riskBadge, { backgroundColor: alert.risk === 'HIGH' ? Colors.riskHigh : Colors.riskMedium }]}>
-                                    <Text style={[styles.riskText, { color: alert.color }]}>{alert.risk} RISK</Text>
+                {(alertsLoading || (activeTab === 'Saved Zones' && loadingZones)) ? (
+                    <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 50 }} />
+                ) : filteredAlerts.length === 0 ? (
+                    <Text style={{ textAlign: 'center', marginTop: 50, color: Colors.secondary }}>
+                        {activeTab === 'All' ? 'No active alerts at this time.' : 'No alerts in your saved zones.'}
+                    </Text>
+                ) : (
+                    filteredAlerts.map((alert) => (
+                        <View key={alert.id} style={styles.alertCard}>
+                            <View style={[styles.indicator, { backgroundColor: alert.severity === 'HIGH' ? Colors.danger : Colors.warning }]} />
+                            <View style={styles.cardContent}>
+                                <View style={styles.cardHeader}>
+                                    <View style={[styles.riskBadge, { backgroundColor: alert.severity === 'HIGH' ? Colors.riskHigh : Colors.riskMedium }]}>
+                                        <Text style={[styles.riskText, { color: alert.severity === 'HIGH' ? Colors.danger : Colors.warning }]}>{alert.severity} RISK</Text>
+                                    </View>
                                 </View>
-                                <View style={[styles.riskBadge, { backgroundColor: alert.risk === 'HIGH' ? Colors.riskHigh : Colors.riskMedium, opacity: 0.5 }]}>
-                                    <Text style={[styles.riskText, { color: alert.color, fontSize: 8 }]}>HIGH RISK</Text>
-                                </View>
+
+                                <Text style={styles.alertType}>{alert.type}</Text>
+                                <Text style={styles.alertType} numberOfLines={2}>{alert.message}</Text>
+                                <Text style={styles.alertTime}>{formatTime(alert.timestamp)}</Text>
                             </View>
-
-                            <Text style={styles.alertType}>{alert.type}</Text>
-                            <Text style={styles.alertTime}>{alert.time}</Text>
+                            <ChevronRight size={20} color={Colors.border} style={styles.chevron} />
                         </View>
-                        <ChevronRight size={20} color={Colors.border} style={styles.chevron} />
-                    </View>
-                ))}
+                    ))
+                )}
             </ScrollView>
-
-            {/* Bottom Navigation */}
-            <View style={styles.bottomNav}>
-                <TouchableOpacity style={styles.navItem} onPress={() => router.push('/add-zone')}>
-                    <Plus size={24} color={Colors.primary} />
-                    <Text style={styles.navText}>Add Zone</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.navItem} onPress={() => router.push('/alerts')}>
-                    <Bell size={24} color={Colors.danger} />
-                    <Text style={[styles.navText, { color: Colors.danger }]}>Alerts</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.navItem} onPress={() => router.push('/settings')}>
-                    <Settings size={24} color={Colors.secondary} />
-                    <Text style={styles.navText}>Settings</Text>
-                </TouchableOpacity>
-            </View>
         </SafeAreaView>
     );
 }

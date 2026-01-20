@@ -1,14 +1,17 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors, Spacing, Typography } from '../styles/theme';
-import { AlertTriangle, Clock } from 'lucide-react-native';
+import { AlertTriangle, Clock, ThumbsUp, CheckCircle } from 'lucide-react-native';
 
 interface CrimeReportCardProps {
     type: string;
-    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'SOS';
     time: string;
     location?: string;
     onPress?: () => void;
+    confirmations?: number;
+    isVerified?: boolean;
+    onConfirm?: () => void;
 }
 
 export const CrimeReportCard: React.FC<CrimeReportCardProps> = ({
@@ -17,9 +20,13 @@ export const CrimeReportCard: React.FC<CrimeReportCardProps> = ({
     time,
     location,
     onPress,
+    confirmations = 0,
+    isVerified = false,
+    onConfirm,
 }) => {
     const getRiskStyles = () => {
         switch (riskLevel) {
+            case 'SOS': return { bg: '#FFEBEE', text: '#FF0000', label: 'CRITICAL SOS' };
             case 'HIGH': return { bg: Colors.riskHigh, text: Colors.danger, label: 'HIGH RISK' };
             case 'MEDIUM': return { bg: Colors.riskMedium, text: Colors.warning, label: 'MEDIUM RISK' };
             default: return { bg: Colors.riskLow, text: Colors.primary, label: 'LOW RISK' };
@@ -40,16 +47,39 @@ export const CrimeReportCard: React.FC<CrimeReportCardProps> = ({
                     <Text style={styles.timeText}>{time}</Text>
                 </View>
 
-                <View style={[styles.riskBadge, { backgroundColor: risk.bg }]}>
-                    <Text style={[styles.riskText, { color: risk.text }]}>{risk.label}</Text>
+                <View style={styles.badgeRow}>
+                    <View style={[styles.riskBadge, { backgroundColor: risk.bg }]}>
+                        <Text style={[styles.riskText, { color: risk.text }]}>{risk.label}</Text>
+                    </View>
+                    {isVerified && (
+                        <View style={styles.verifiedBadge}>
+                            <CheckCircle size={10} color={Colors.white} />
+                            <Text style={styles.verifiedText}>VERIFIED REPORT</Text>
+                        </View>
+                    )}
                 </View>
 
-                {location && (
-                    <View style={styles.locationContainer}>
-                        <Clock size={12} color={Colors.secondary} />
-                        <Text style={styles.locationText}>{location}</Text>
-                    </View>
-                )}
+                <View style={styles.footer}>
+                    {location ? (
+                        <View style={styles.locationContainer}>
+                            <Clock size={12} color={Colors.secondary} />
+                            <Text style={styles.locationText}>{location}</Text>
+                        </View>
+                    ) : <View />}
+
+                    {onConfirm && (
+                        <TouchableOpacity
+                            style={styles.confirmBtn}
+                            onPress={(e) => {
+                                e.stopPropagation();
+                                onConfirm();
+                            }}
+                        >
+                            <ThumbsUp size={14} color={Colors.primary} />
+                            <Text style={styles.confirmBtnText}>Confirm ({confirmations})</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
         </TouchableOpacity>
     );
@@ -109,13 +139,55 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: '700',
     },
-    locationContainer: {
+    badgeRow: {
         flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: Spacing.xs,
+        gap: Spacing.sm,
+    },
+    verifiedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.success,
+        paddingHorizontal: Spacing.sm,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    verifiedText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: Colors.white,
+        marginLeft: 4,
+    },
+    footer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
         marginTop: Spacing.sm,
     },
+    locationContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
     locationText: {
         ...Typography.small,
+        marginLeft: 4,
+    },
+    confirmBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.primaryLight,
+        paddingHorizontal: Spacing.sm,
+        paddingVertical: Spacing.xs,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: Colors.primary,
+    },
+    confirmBtnText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: Colors.primary,
         marginLeft: 4,
     },
 });

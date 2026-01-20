@@ -1,37 +1,137 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Switch, ScrollView, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, TextInput, Switch, ScrollView, Platform, Alert as RNAlert, ActivityIndicator } from 'react-native';
 import { Colors, Spacing, Typography } from '../src/styles/theme';
-import { Search, MapPin, ChevronLeft, User, X } from 'lucide-react-native';
+import { Search, MapPin, ChevronLeft, User, X, Bell, Settings, Plus } from 'lucide-react-native';
 import Map, { MapMarker, MapCircle } from '../src/components/MapComponent';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocation } from '../src/hooks/useLocation';
+import { createZone } from '../src/services/zoneService';
+import { getCoordsFromAddress, getAddressFromCoords } from '../src/utils/geocoding';
 
 export default function AddZoneScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams();
+    const { location: userLoc, loading: locLoading } = useLocation();
+
     const [radius, setRadius] = useState(500);
     const [phoneNameOnly, setPhoneNameOnly] = useState(true);
     const [highRiskAlerts, setHighRiskAlerts] = useState(false);
+    const [zoneName, setZoneName] = useState((params.name as string) || 'My Safe Zone');
+    const [searching, setSearching] = useState(false);
+    const [areaName, setAreaName] = useState<string | null>((params.name as string) || null);
+
+    const [region, setRegion] = useState({
+        latitude: params.lat ? parseFloat(params.lat as string) : 5.95,
+        longitude: params.lon ? parseFloat(params.lon as string) : 80.53,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+    });
+
+    const [markerPoint, setMarkerPoint] = useState({
+        latitude: params.lat ? parseFloat(params.lat as string) : 5.95,
+        longitude: params.lon ? parseFloat(params.lon as string) : 80.53,
+    });
+
+    const updateAreaName = async (lat: number, lon: number) => {
+        const address = await getAddressFromCoords(lat, lon);
+        if (address) {
+            setAreaName(address.split(',')[0]);
+        }
+    };
+
+    useEffect(() => {
+        if (userLoc && !params.lat) {
+            setRegion(prev => ({
+                ...prev,
+                latitude: userLoc.latitude,
+                longitude: userLoc.longitude,
+            }));
+            setMarkerPoint({
+                latitude: userLoc.latitude,
+                longitude: userLoc.longitude,
+            });
+            updateAreaName(userLoc.latitude, userLoc.longitude);
+        }
+    }, [userLoc, params.lat]);
+
+    const handleSearch = async () => {
+        if (!zoneName.trim()) return;
+        setSearching(true);
+        try {
+            const coords = await getCoordsFromAddress(zoneName);
+            if (coords) {
+                const newPoint = { latitude: coords.latitude, longitude: coords.longitude };
+                setMarkerPoint(newPoint);
+                setRegion(prev => ({ ...prev, ...newPoint }));
+                setAreaName(zoneName);
+            } else {
+                RNAlert.alert('Error', 'Location not found');
+            }
+        } catch (error) {
+            RNAlert.alert('Error', 'Failed to search location');
+        } finally {
+            setSearching(false);
+        }
+    };
+
+    const handleMapPress = (e: any) => {
+        const coords = e.nativeEvent.coordinate;
+        setMarkerPoint(coords);
+        updateAreaName(coords.latitude, coords.longitude);
+    };
+
+    const handleSaveZone = async () => {
+        try {
+            await createZone({
+                name: zoneName,
+                latitude: markerPoint.latitude,
+                longitude: markerPoint.longitude,
+                radius: radius,
+                phoneNameOnly,
+                highRiskAlerts
+            });
+            RNAlert.alert("Success", "Zone saved successfully!");
+            router.push('/zones');
+        } catch (error: any) {
+            RNAlert.alert("Error", error.message || "Failed to save zone");
+        }
+    };
 
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
                 <View style={styles.headerTop}>
-                    <View>
-                        <Text style={styles.brandTitle}>InSafe</Text>
-                        <Text style={styles.brandSubtitle}>Stay Safe, Stay Informed</Text>
-                    </View>
-                    <TouchableOpacity style={styles.profileBtn}>
-                        <User size={24} color={Colors.primary} />
+                    <TouchableOpacity onPress={() => router.back()}>
+                        <ChevronLeft size={24} color={Colors.primary} />
                     </TouchableOpacity>
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={styles.brandTitle}>InSafe</Text>
+                        <Text style={styles.brandSubtitle}>Add Safe Zone</Text>
+                    </View>
+                    <View style={{ width: 40 }} />
                 </View>
 
                 <View style={styles.searchBar}>
                     <Search size={20} color={Colors.primary} />
                     <TextInput
-                        placeholder="Matara"
+                        placeholder="Zone Name (e.g. Home, Work)"
                         style={styles.searchInput}
+                        value={zoneName}
+                        onChangeText={setZoneName}
+                        onSubmitEditing={handleSearch}
                         placeholderTextColor={Colors.text}
                     />
-                    <X size={18} color={Colors.secondary} />
+                    {searching && <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: 10 }} />}
+                    {zoneName.length > 0 && !searching && (
+                        <TouchableOpacity onPress={handleSearch}>
+                            <Search size={18} color={Colors.primary} style={{ marginRight: 10 }} />
+                        </TouchableOpacity>
+                    )}
+                    {zoneName.length > 0 && (
+                        <TouchableOpacity onPress={() => setZoneName('')}>
+                            <X size={18} color={Colors.secondary} />
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
 
@@ -39,23 +139,20 @@ export default function AddZoneScreen() {
                 <View style={styles.mapContainer}>
                     <Map
                         style={styles.map}
-                        initialRegion={{
-                            latitude: 5.95,
-                            longitude: 80.53,
-                            latitudeDelta: 0.02,
-                            longitudeDelta: 0.02,
-                        }}
+                        region={region}
+                        onRegionChangeComplete={setRegion}
+                        onPress={handleMapPress}
                     >
-                        <MapMarker coordinate={{ latitude: 5.95, longitude: 80.53 }}>
+                        <MapMarker coordinate={markerPoint}>
                             <View style={styles.markerContainer}>
                                 <View style={styles.markerDot} />
                                 <View style={[styles.markerCallout, { bottom: 35 }]}>
-                                    <Text style={styles.calloutText}>Set Zone Center</Text>
+                                    <Text style={styles.calloutText}>Tap to set Center</Text>
                                 </View>
                             </View>
                         </MapMarker>
                         <MapCircle
-                            center={{ latitude: 5.95, longitude: 80.53 }}
+                            center={markerPoint}
                             radius={radius}
                             fillColor="rgba(26, 155, 103, 0.2)"
                             strokeColor={Colors.primary}
@@ -64,13 +161,13 @@ export default function AddZoneScreen() {
                     </Map>
                     <View style={styles.locationTag}>
                         <View style={styles.dot} />
-                        <Text style={styles.locationTagText}>Safe Area</Text>
+                        <Text style={styles.locationTagText}>{areaName || 'Select Area on Map'}</Text>
                     </View>
                 </View>
 
                 <View style={styles.controls}>
                     <View style={styles.section}>
-                        <Text style={styles.sectionLabel}>Search address or landmark...</Text>
+                        <Text style={styles.sectionLabel}>Zone Settings</Text>
                         <View style={styles.switchRow}>
                             <View style={styles.switchInfo}>
                                 <View style={styles.circleIcon} />
@@ -94,15 +191,25 @@ export default function AddZoneScreen() {
                             />
                         </View>
 
+                        <Text style={[styles.sectionLabel, { marginTop: 15 }]}>Radius: {radius}m</Text>
                         <View style={styles.sliderContainer}>
-                            <View style={styles.sliderTrack}>
+                            <TouchableOpacity
+                                style={styles.sliderTrack}
+                                activeOpacity={1}
+                                onPressIn={(e) => {
+                                    // Basic slider logic for demo
+                                    const x = e.nativeEvent.locationX;
+                                    const newRadius = Math.round((x / 300) * 2000);
+                                    if (newRadius >= 100 && newRadius <= 2000) setRadius(newRadius);
+                                }}
+                            >
                                 <View style={[styles.sliderFill, { width: `${(radius / 2000) * 100}%` }]} />
                                 <View style={[styles.sliderThumb, { left: `${(radius / 2000) * 100}%` }]} />
-                            </View>
+                            </TouchableOpacity>
                         </View>
                     </View>
 
-                    <TouchableOpacity style={styles.saveBtn} onPress={() => router.push('/zones')}>
+                    <TouchableOpacity style={styles.saveBtn} onPress={handleSaveZone}>
                         <Text style={styles.saveBtnText}>Save Zone</Text>
                     </TouchableOpacity>
                 </View>
@@ -127,9 +234,7 @@ export default function AddZoneScreen() {
     );
 }
 
-// Re-using layouts from Home for consistency where possible
-import { Bell, Settings, Plus } from 'lucide-react-native';
-
+// Custom styles for this screen
 const styles = StyleSheet.create({
     container: {
         flex: 1,

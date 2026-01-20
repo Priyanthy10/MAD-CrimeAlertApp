@@ -9,6 +9,7 @@ interface InputProps {
     placeholder?: string;
     secureTextEntry?: boolean;
     keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
+    autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
     error?: string;
     icon?: React.ReactNode;
     style?: ViewStyle;
@@ -21,6 +22,7 @@ export const Input: React.FC<InputProps> = ({
     placeholder,
     secureTextEntry,
     keyboardType = 'default',
+    autoCapitalize = 'none',
     error,
     icon,
     style,
@@ -38,7 +40,7 @@ export const Input: React.FC<InputProps> = ({
                     placeholderTextColor={Colors.secondary}
                     secureTextEntry={secureTextEntry}
                     keyboardType={keyboardType}
-                    autoCapitalize="none"
+                    autoCapitalize={autoCapitalize}
                 />
             </View>
             {error && <Text style={styles.errorText}>{error}</Text>}

@@ -1,153 +1,136 @@
-// Alert Service
-// Handles all alert-related API calls
-//
-// TODO: Implement the following functions:
-//
-// getAlerts(token)
-//   - GET request to /api/alerts
-//   - Return array of all alerts
-//   - Include alert details (id, type, message, location, timestamp, severity)
-//
-// getAlertsByZone(token, zoneId)
-//   - GET request to /api/alerts/zone/:id
-//   - Return alerts specific to a zone
-//   - Filter by zone boundaries
-//
-// reportAlert(token, alertData: {type, message, latitude, longitude, severity})
-//   - POST request to /api/alerts
-//   - Create new alert report
-//   - Return created alert object
-//
-// getAlertById(token, alertId)
-//   - GET request to /api/alerts/:id
-//   - Return single alert details
-//
-// markAlertAsRead(token, alertId)
-//   - PUT request to /api/alerts/:id/read
-//   - Mark alert as viewed by user
-// Alert Service
-// Handles all alert-related API calls
+import {
+  collection,
+  addDoc,
+  getDocs,
+  getDoc,
+  doc,
+  updateDoc,
+  query,
+  where,
+  onSnapshot,
+  Timestamp,
+  orderBy
+} from "firebase/firestore";
+import { db } from "./firebaseConfig";
 
-import { AlertSeverity } from "../../app/alerts";
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
+// 🔹 Alert severity enum (matching UI expectation)
+export enum AlertSeverity {
+  LOW = "LOW",
+  MEDIUM = "MEDIUM",
+  HIGH = "HIGH",
+  SOS = "SOS"
+}
 
 // 🔹 Alert type definition
 export interface Alert {
-  id: string;
+  id?: string;
   type: string;
   message: string;
   latitude: number;
   longitude: number;
-  timestamp: string;
+  timestamp: any;
   severity: AlertSeverity;
   isRead?: boolean;
+  imageUrl?: string;
+  userId?: string;
+  confirmedBy?: string[];
 }
 
-// 🔹 Helper function for headers
-const getAuthHeaders = (token: string) => ({
-  "Content-Type": "application/json",
-  Authorization: `Bearer ${token}`,
-});
-
 /**
- * GET /api/alerts
- * Return array of all alerts
+ * Get all alerts from Firestore
  */
-export async function getAlerts(token: string): Promise<Alert[]> {
-  const response = await fetch(`${API_BASE_URL}/alerts`, {
-    method: "GET",
-    headers: getAuthHeaders(token),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch alerts");
-  }
-
-  return response.json();
+export async function getAlerts(): Promise<Alert[]> {
+  const alertsCol = collection(db, "alerts");
+  const alertSnapshot = await getDocs(query(alertsCol, orderBy("timestamp", "desc")));
+  return alertSnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  } as Alert));
 }
 
 /**
- * GET /api/alerts/zone/:id
- * Return alerts specific to a zone
+ * Subscribe to real-time alerts
  */
-export async function getAlertsByZone(
-  token: string,
-  zoneId: string
-): Promise<Alert[]> {
-  const response = await fetch(`${API_BASE_URL}/alerts/zone/${zoneId}`, {
-    method: "GET",
-    headers: getAuthHeaders(token),
+export function subscribeToAlerts(callback: (alerts: Alert[]) => void) {
+  const alertsCol = collection(db, "alerts");
+  const q = query(alertsCol, orderBy("timestamp", "desc"));
+
+  return onSnapshot(q, (snapshot) => {
+    const alerts = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Alert));
+    callback(alerts);
   });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch zone alerts");
-  }
-
-  return response.json();
 }
 
 /**
- * POST /api/alerts
- * Create new alert report
+ * Report a new alert to Firestore
  */
-export async function reportAlert(
-  token: string,
-  alertData: {
-    type: string;
-    message: string;
-    latitude: number;
-    longitude: number;
-    severity: AlertSeverity;
-  }
-): Promise<Alert> {
-  const response = await fetch(`${API_BASE_URL}/alerts`, {
-    method: "POST",
-    headers: getAuthHeaders(token),
-    body: JSON.stringify(alertData),
-  });
+export async function reportAlert(alertData: {
+  type: string;
+  message: string;
+  latitude: number;
+  longitude: number;
+  severity: AlertSeverity;
+  imageUrl?: string;
+}): Promise<string> {
+  try {
+    // Check authentication
+    const { auth } = await import('./firebaseConfig');
+    const currentUser = auth.currentUser;
 
-  if (!response.ok) {
-    throw new Error("Failed to report alert");
-  }
+    if (!currentUser) {
+      throw new Error("Authentication Required: Please log in to report a crime.");
+    }
 
-  return response.json();
+    const alertsCol = collection(db, "alerts");
+
+    const dataToSave = {
+      ...alertData,
+      userId: currentUser.uid,
+      timestamp: Timestamp.now(),
+      isRead: false,
+      confirmedBy: []
+    };
+
+    const docRef = await addDoc(alertsCol, dataToSave);
+    return docRef.id;
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to submit report");
+  }
 }
 
 /**
- * GET /api/alerts/:id
- * Return single alert details
+ * Confirm a report to increase its credibility
  */
-export async function getAlertById(
-  token: string,
-  alertId: string
-): Promise<Alert> {
-  const response = await fetch(`${API_BASE_URL}/alerts/${alertId}`, {
-    method: "GET",
-    headers: getAuthHeaders(token),
-  });
+export async function confirmAlert(alertId: string, userId: string): Promise<void> {
+  const alertDoc = doc(db, "alerts", alertId);
+  const docSnap = await getDoc(alertDoc);
 
-  if (!response.ok) {
-    throw new Error("Failed to fetch alert");
+  if (docSnap.exists()) {
+    const data = docSnap.data() as Alert;
+    const confirmedBy = data.confirmedBy || [];
+
+    // Prevent reporter from confirming their own report and prevent duplicate confirmations
+    if (data.userId === userId) {
+      throw new Error("You cannot confirm your own report.");
+    }
+
+    if (confirmedBy.includes(userId)) {
+      throw new Error("You have already confirmed this report.");
+    }
+
+    await updateDoc(alertDoc, {
+      confirmedBy: [...confirmedBy, userId]
+    });
   }
-
-  return response.json();
 }
 
 /**
- * PUT /api/alerts/:id/read
  * Mark alert as read
  */
-export async function markAlertAsRead(
-  token: string,
-  alertId: string
-): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/alerts/${alertId}/read`, {
-    method: "PUT",
-    headers: getAuthHeaders(token),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to mark alert as read");
-  }
+export async function markAlertAsRead(alertId: string): Promise<void> {
+  const alertDoc = doc(db, "alerts", alertId);
+  await updateDoc(alertDoc, { isRead: true });
 }

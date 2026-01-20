@@ -14,5 +14,6 @@ export const Map = ({ style, children }: any) => (
 
 export const MapMarker = ({ children }: any) => <View>{children}</View>;
 export const MapCircle = () => null;
+export const MapHeatmap = () => null;
 
 export default Map;
